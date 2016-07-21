@@ -35,7 +35,7 @@ module NewRelic
     class Agent < NewRelic::Plugin::Agent::Base
       agent_guid 'com.pivotal.newrelic.plugin.rabbitmq'
       agent_version '1.0.5'
-      agent_config_options :management_api_url, :debug
+      agent_config_options :management_api_url, :ssl_options, :debug
       agent_human_labels('RabbitMQ') do
         uri = URI.parse(management_api_url)
         "#{uri.host}:#{uri.port}"
@@ -81,7 +81,7 @@ module NewRelic
       end
       private
       def rmq_manager
-        @rmq_manager ||= ::RabbitMQManager.new(management_api_url)
+        @rmq_manager ||= ::RabbitMQManager.new(management_api_url, ssl_options)
       end
 
       #
