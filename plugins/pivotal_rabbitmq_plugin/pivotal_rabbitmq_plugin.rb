@@ -34,7 +34,7 @@ module NewRelic
     class Agent < NewRelic::Plugin::Agent::Base
       agent_guid 'com.pivotal.newrelic.plugin.rabbitmq'
       agent_version '1.0.5'
-      agent_config_options :management_api_url, :ssl_options, :debug
+      agent_config_options :management_api_url, :queues, :ssl_options, :debug
       agent_human_labels('RabbitMQ') do
         rmq_manager.overview["cluster_name"]
       end
@@ -129,27 +129,51 @@ module NewRelic
       end
 
       def report_nodes
+        default_node_name = @overview['node']
         rmq_manager.nodes.each do |n|
-          report_metric_check_debug mk_path('Node', n['name'], 'File Descriptors'), 'file_descriptors', n['fd_used']
-          report_metric_check_debug mk_path('Node', n['name'], 'Sockets'), 'sockets', n['sockets_used']
-          report_metric_check_debug mk_path('Node', n['name'], 'Erlang Processes'), 'processes', n['proc_used']
-          report_metric_check_debug mk_path('Node', n['name'], 'Memory Used'), 'bytes', n['mem_used']
+          {
+            'fd_used' => [:file_descriptors, 'File Descriptors'],
+            'sockets_used' => [:sockets, 'Sockets'],
+            'proc_used' => [:processes, 'Erlang Processes'],
+            'mem_used' => [:bytes, 'Memory Used'],
+          }.each do |key, categorized_path|
+            category, *path = categorized_path
+            report_metric_check_debug mk_path('Node', n['name'], *path), category.to_s, n[key]
+            if n['name'] == default_node_name
+              # Report the default node both with and without a name so that
+              # it appears on the plugin dashboard.
+              report_metric_check_debug mk_path('Node', *path), category.to_s, n[key]
+            end
+          end
         end
       end
 
       def report_queues
         rmq_manager.queues.each do |q|
-          next if q['name'].start_with?('amq.gen')
-          report_metric_check_debug mk_path('Queue', q['vhost'], q['name'], 'Messages', 'Ready'), 'message', q['messages_ready']
-          report_metric_check_debug mk_path('Queue', q['vhost'], q['name'], 'Memory'), 'bytes', q['memory']
-          report_metric_check_debug mk_path('Queue', q['vhost'], q['name'], 'Messages', 'Total'), 'message', q['messages']
-          report_metric_check_debug mk_path('Queue', q['vhost'], q['name'], 'Consumers', 'Total'), 'consumers', q['consumers']
-          report_metric_check_debug mk_path('Queue', q['vhost'], q['name'], 'Consumers', 'Active'), 'consumers', q['active_consumers']
+          name = q['name']
+          next if name.start_with?('amq.gen')
+          if queues
+            must_match = queues['include']
+            next if must_match and not must_match.any? { |r| Regexp.new(r).match(name) }
+            next if (queues['exclude'] || []).any? { |r| Regexp.new(r).match(name) }
+          end
+          {
+            'messages' => [:message, 'Messages', 'Total'],
+            'messages_ready' => [:message, 'Messages', 'Ready'],
+            'consumers' => [:consumers, 'Consumers', 'Total'],
+            'consumer_utilisation' => [:consumers, 'Consumers', 'Utilization'],
+            'memory' => [:bytes, 'Memory'],
+          }.each do |key, categorized_path|
+            category, *path = categorized_path
+            report_metric_check_debug mk_path('Queue', q['vhost'], name, *path), category.to_s, q[key]
+          end
         end
       end
 
       def mk_path(*args)
-        args.map { |a| URI.encode_www_form_component a }.join "/"
+        args.map { |a|
+          a.gsub(/[\/%]/) { |c| URI.encode_www_form_component(c) }
+        }.join "/"
       end
     end
 
