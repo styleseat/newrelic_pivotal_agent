@@ -38,12 +38,17 @@ module NewRelic
       agent_config_options :management_api_url, :ssl_options, :debug
       agent_human_labels('RabbitMQ') do
         uri = URI.parse(management_api_url)
-        "#{uri.host}:#{uri.port}"
+        host = uri.host
+        if ['127.0.0.1', 'localhost'].include?(host)
+          io = IO.popen('hostname')
+          host = io.read.chomp
+        end
+        "#{host}:#{uri.port}"
       end
 
       def poll_cycle
         begin
-          if "#{self.debug}" == "true" 
+          if "#{self.debug}" == "true"
             puts "[RabbitMQ] Debug Mode On: Metric data will not be sent to new relic"
           end
 
@@ -65,7 +70,7 @@ module NewRelic
 
         rescue Exception => e
           $stderr.puts "[RabbitMQ] Exception while processing metrics. Check configuration."
-          $stderr.puts e.message  
+          $stderr.puts e.message
           if "#{self.debug}" == "true"
             $stderr.puts e.backtrace.inspect
           end
