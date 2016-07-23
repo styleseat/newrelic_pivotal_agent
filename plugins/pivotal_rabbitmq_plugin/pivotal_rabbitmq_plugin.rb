@@ -136,13 +136,13 @@ module NewRelic
             'sockets_used' => [:sockets, 'Sockets'],
             'proc_used' => [:processes, 'Erlang Processes'],
             'mem_used' => [:bytes, 'Memory Used'],
-          }.each do |key, categorized_path|
-            category, *path = categorized_path
-            report_metric_check_debug mk_path('Node', n['name'], *path), category.to_s, n[key]
+          }.each do |key, metric|
+            unit, *path = metric
+            report_metric_check_debug mk_path('Node', n['name'], *path), unit.to_s, n[key]
             if n['name'] == default_node_name
               # Report the default node both with and without a name so that
               # it appears on the plugin dashboard.
-              report_metric_check_debug mk_path('Node', *path), category.to_s, n[key]
+              report_metric_check_debug mk_path('Node', *path), unit.to_s, n[key]
             end
           end
         end
@@ -163,9 +163,9 @@ module NewRelic
             'consumers' => [:consumers, 'Consumers', 'Total'],
             'consumer_utilisation' => [:consumers, 'Consumers', 'Utilization'],
             'memory' => [:bytes, 'Memory'],
-          }.each do |key, categorized_path|
-            category, *path = categorized_path
-            report_metric_check_debug mk_path('Queue', q['vhost'], name, *path), category.to_s, q[key]
+          }.each do |key, metric|
+            unit, *path = metric
+            report_metric_check_debug mk_path('Queue', q['vhost'], name, *path), unit.to_s, q[key]
           end
         end
       end
